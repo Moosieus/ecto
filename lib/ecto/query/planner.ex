@@ -13,7 +13,7 @@ defmodule Ecto.Query.Planner do
     LimitExpr
   }
 
-  if map_size(%Ecto.Query{}) != 21 do
+  if map_size(%Ecto.Query{}) != 25 do
     raise "Ecto.Query match out of date in builder"
   end
 
@@ -912,7 +912,7 @@ defmodule Ecto.Query.Planner do
   end
 
   defp merge_cache(kind, query, expr, {cache, params}, _operation, adapter)
-       when kind in ~w(select distinct limit offset)a do
+       when kind in ~w(select distinct limit offset search_limit search_offset search_stable_sort)a do
     if expr do
       {params, cacheable?} = cast_and_merge_params(kind, query, expr, params, adapter)
       {merge_cache({kind, expr_to_cache(expr)}, cache, cacheable?), params}
@@ -922,7 +922,7 @@ defmodule Ecto.Query.Planner do
   end
 
   defp merge_cache(kind, query, exprs, {cache, params}, _operation, adapter)
-       when kind in ~w(where update group_by having order_by)a do
+       when kind in ~w(where update group_by having order_by search)a do
     {expr_cache, {params, cacheable?}} =
       Enum.map_reduce(exprs, {params, true}, fn expr, {params, cacheable?} ->
         {params, current_cacheable?} = cast_and_merge_params(kind, query, expr, params, adapter)
@@ -1342,7 +1342,7 @@ defmodule Ecto.Query.Planner do
   end
 
   defp validate_and_increment(kind, query, expr, counter, _operation, adapter)
-       when kind in ~w(select distinct limit offset)a do
+       when kind in ~w(select distinct limit offset search_limit search_offset search_stable_sort)a do
     if expr do
       prewalk(kind, query, expr, counter, adapter)
     else
@@ -1351,7 +1351,7 @@ defmodule Ecto.Query.Planner do
   end
 
   defp validate_and_increment(kind, query, exprs, counter, _operation, adapter)
-       when kind in ~w(where group_by having order_by update)a do
+       when kind in ~w(where group_by having order_by update search)a do
     {exprs, counter} =
       Enum.reduce(exprs, {[], counter}, fn
         %{expr: []}, {list, acc} ->
@@ -2334,6 +2334,10 @@ defmodule Ecto.Query.Planner do
     from: :from,
     join: :joins,
     where: :wheres,
+    search: :searches,
+    search_limit: :search_limit,
+    search_offset: :search_offset,
+    search_stable_sort: :search_stable_sort,
     group_by: :group_bys,
     having: :havings,
     windows: :windows,

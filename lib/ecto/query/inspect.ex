@@ -105,6 +105,10 @@ defimpl Inspect, for: Ecto.Query do
     limit = limit(query.limit, names)
 
     wheres = bool_exprs(%{and: :where, or: :or_where}, query.wheres, names)
+    searches = bool_exprs(%{and: :search, or: :or_search}, query.searches, names)
+    search_limit = kw_expr(:search_limit, query.search_limit, names)
+    search_offset = kw_expr(:search_offset, query.search_offset, names)
+    search_stable_sort = kw_expr(:search_stable_sort, query.search_stable_sort, names)
     group_bys = kw_exprs(:group_by, query.group_bys, names)
     havings = bool_exprs(%{and: :having, or: :or_having}, query.havings, names)
     order_bys = kw_exprs(:order_by, query.order_bys, names)
@@ -119,6 +123,10 @@ defimpl Inspect, for: Ecto.Query do
       from,
       joins,
       wheres,
+      searches,
+      search_limit,
+      search_offset,
+      search_stable_sort,
       group_bys,
       havings,
       windows,

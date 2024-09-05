@@ -414,7 +414,12 @@ defmodule Ecto.Query do
             distinct: nil,
             lock: nil,
             windows: [],
-            with_ctes: nil
+            with_ctes: nil,
+            searches: [],
+            search_limit: nil,
+            search_offset: nil,
+            search_stable_sort: nil
+
 
   defmodule FromExpr do
     @moduledoc false
@@ -973,6 +978,7 @@ defmodule Ecto.Query do
   end
 
   defp do_exclude(%Ecto.Query{} = query, :where), do: %{query | wheres: []}
+  defp do_exclude(%Ecto.Query{} = query, :search), do: %{query | search: nil}
   defp do_exclude(%Ecto.Query{} = query, :order_by), do: %{query | order_bys: []}
   defp do_exclude(%Ecto.Query{} = query, :group_by), do: %{query | group_bys: []}
   defp do_exclude(%Ecto.Query{} = query, :combinations), do: %{query | combinations: []}
@@ -1107,7 +1113,8 @@ defmodule Ecto.Query do
   @from_join_opts [:as, :prefix, :hints]
   @no_binds [:union, :union_all, :except, :except_all, :intersect, :intersect_all]
   @binds [:lock, :where, :or_where, :select, :distinct, :order_by, :group_by, :windows] ++
-           [:having, :or_having, :limit, :offset, :preload, :update, :select_merge, :with_ctes]
+           [:having, :or_having, :limit, :offset, :preload, :update, :select_merge, :with_ctes] ++
+            [:search, :or_search]
 
   defp from([{type, expr} | t], env, count_bind, quoted, binds) when type in @binds do
     # If all bindings are integer indexes keep AST Macro expandable to %Query{},
@@ -1851,6 +1858,14 @@ defmodule Ecto.Query do
   """
   defmacro or_where(query, binding \\ [], expr) do
     Builder.Filter.build(:where, :or, query, binding, expr, __CALLER__)
+  end
+
+  defmacro search(query, binding \\ [], expr) do
+    Builder.Search.build(:and, query, binding, expr, __CALLER__)
+  end
+
+  defmacro or_search(query, binding \\ [], expr) do
+    Builder.Search.build(:or, query, binding, expr, __CALLER__)
   end
 
   @doc """
