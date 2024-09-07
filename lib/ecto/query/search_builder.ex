@@ -29,27 +29,6 @@ defmodule Ecto.Query.SearchBuilder do
     >=: 2,
   ]
 
-  # "identity" queries
-  @score_effects [
-    boost: 2,
-    const_score: 2
-  ]
-
-  @queries [
-    all: 0,
-    disjunction_max: 2,
-    empty: 0,
-    exists: 1,
-    fuzzy_term: 2,
-    more_like_this: 2,
-    parse: 2,
-    phrase: 2,
-    phrase_prefix: 2,
-    regex: 2,
-    term: 2,
-    term_set: 1
-  ]
-
   @typedoc """
   Quoted types store primitive types and types in the format
   {source, quoted}. The latter are handled directly in the planner,
@@ -418,11 +397,108 @@ defmodule Ecto.Query.SearchBuilder do
     {{:{}, [], [:parse, [], [var, parade_ql]]}, params_acc}
   end
 
+  def escape({:all, _, [{var, _, context}]}, _, params_acc, vars, _)
+      when is_atom(var) and is_atom(context) do
+    var = escape_var!(var, vars)
+
+    {{:{}, [], [:all, [], [var]]}, params_acc}
+  end
+
+  def escape({:boost, _, [query, boost]}, _, params_acc, vars, env) do
+    {query, params_acc} = escape(query, :boolean, params_acc, vars, env)
+    {boost, params_acc} = escape(boost, :float, params_acc, vars, env)
+
+    {{:{}, [], [:boost, [], [query, boost]]}, params_acc}
+  end
+
+  def escape({:const_score, _, [query, score]}, _, params_acc, vars, env) do
+    {query, params_acc} = escape(query, :boolean, params_acc, vars, env)
+    {score, params_acc} = escape(score, :float, params_acc, vars, env)
+
+    {{:{}, [], [:const_score, [], [query, score]]}, params_acc}
+  end
+
+  def escape({:empty, _, [field]}, type, params_acc, vars, env) do
+    {field, params_acc} = escape(field, type, params_acc, vars, env)
+
+    {{:{}, [], [:empty, [], [field]]}, params_acc}
+  end
+
+  def escape({:exists, _, [field]}, type, params_acc, vars, env) do
+    {field, params_acc} = escape(field, type, params_acc, vars, env)
+
+    {{:{}, [], [:exists, [], [field]]}, params_acc}
+  end
+
+  def escape({:fuzzy_term, _, [field, value]}, type, params_acc, vars, env) do
+    {field, params_acc} = escape(field, type, params_acc, vars, env)
+    {value, params_acc} = escape(value, :string, params_acc, vars, env)
+
+    {{:{}, [], [:fuzzy_term, [], [field, value]]}, params_acc}
+  end
+
+  @fuzzy_option_types [distance: :integer, transpose_cost_one: :boolean, prefix: :boolean]
+
+  def escape({:fuzzy_term, _, [field, value, opts]}, type, params_acc, vars, env) do
+    {field, params_acc} = escape(field, type, params_acc, vars, env)
+    {value, params_acc} = escape(value, :string, params_acc, vars, env)
+
+    {opts, params_acc} = escape_options!(opts, @fuzzy_option_types, params_acc, vars, env)
+
+    {{:{}, [], [:fuzzy_term, [], [field, value, opts]]}, params_acc}
+  end
+
+  def escape({:phrase, _, [field, phrases]}, type, params_acc, vars, env) do
+    {field, params_acc} = escape(field, type, params_acc, vars, env)
+    {phrases, params_acc} = escape(phrases, {:array, :string}, params_acc, vars, env)
+
+    {{:{}, [], [:phrase, [], [field, phrases]]}, params_acc}
+  end
+
+  def escape({:phrase, _, [field, phrases, slop]}, type, params_acc, vars, env) do
+    {field, params_acc} = escape(field, type, params_acc, vars, env)
+    {phrases, params_acc} = escape(phrases, {:array, :string}, params_acc, vars, env)
+    {slop, params_acc} = escape(slop, :integer, params_acc, vars, env)
+
+    {{:{}, [], [:phrase, [], [field, phrases, slop]]}, params_acc}
+  end
+
+  def escape({:phrase_prefix, _, [field, phrases]}, type, params_acc, vars, env) do
+    {field, params_acc} = escape(field, type, params_acc, vars, env)
+    {phrases, params_acc} = escape(phrases, {:array, :string}, params_acc, vars, env)
+
+    {{:{}, [], [:phrase_prefix, [], [field, phrases]]}, params_acc}
+  end
+
+  def escape({:phrase_prefix, _, [field, phrases, max_expansion]}, type, params_acc, vars, env) do
+    {field, params_acc} = escape(field, type, params_acc, vars, env)
+    {phrases, params_acc} = escape(phrases, {:array, :string}, params_acc, vars, env)
+    {max_expansion, params_acc} = escape(max_expansion, :integer, params_acc, vars, env)
+
+    {{:{}, [], [:phrase_prefix, [], [field, phrases, max_expansion]]}, params_acc}
+  end
+
+  def escape({:regex, _, [field, pattern]}, type, params_acc, vars, env) do
+    {field, params_acc} = escape(field, type, params_acc, vars, env)
+    {pattern, params_acc} = escape(pattern, :string, params_acc, vars, env)
+
+    {{:{}, [], [:regex, [], [field, pattern]]}, params_acc}
+  end
+
   def escape({:term, _, [field, term]}, type, params_acc, vars, env) do
     {field, params_acc} = escape(field, type, params_acc, vars, env)
     {term, params_acc} = escape(term, :any, params_acc, vars, env)
 
     {{:{}, [], [:term, [], [field, term]]}, params_acc}
+  end
+
+  def escape({:term_set, _, [field, term_set]}, type, params_acc, vars, env) do
+    {field, params_acc} = escape(field, type, params_acc, vars, env)
+    {term_set, params_acc} = escape(term_set, :boolean, params_acc, vars, env)
+
+    # get schema and validate keys
+
+    {{:{}, [], [:term_set, [], [field, term_set]]}, params_acc}
   end
 
   def escape({op, _, _}, _type, _params_acc, _vars, _env) when op in ~w(|| && !)a do
@@ -480,6 +556,35 @@ defmodule Ecto.Query.SearchBuilder do
   # For everything else we raise
   def escape(other, _type, _params_acc, _vars, _env) do
     error!("`#{Macro.to_string(other)}` is not a valid query expression")
+  end
+
+  defp keyword_literal!(kw_list) when is_list(kw_list) do
+    if Keyword.keyword?(kw_list) do
+      kw_list
+    else
+      error!("`#{Macro.to_string(kw_list)}` is not a valid keyword list.")
+    end
+  end
+
+  defp keyword_literal!(other) do
+    error!("`#{Macro.to_string(other)}` must be a keyword list literal.")
+  end
+
+  defp escape_options!(opts, opt_types, params_acc, vars, env) do
+    opts = keyword_literal!(opts)
+
+    opts =
+      for {key, type} <- opt_types,
+          Keyword.has_key?(opts, key) do
+        {key, Keyword.fetch!(opts, key), type}
+      end
+
+    Enum.reduce(opts, {[], params_acc}, &escape_option(&1, &2, vars, env))
+  end
+
+  defp escape_option({key, value, type}, {acc, params_acc}, vars, env) do
+    {expr, params_acc} = escape(value, type, params_acc, vars, env)
+    {[acc ++ {key, expr}], params_acc}
   end
 
   defp get_env({env, _}), do: env
