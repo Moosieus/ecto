@@ -2,7 +2,6 @@
 * Implement all the query functions:
   * disjunction_max
   * more_like_this
-  * term_set (accept keyword literal)
   * boolean
   * `and`/`or`/`not`.
 * Support the new sorting options.
