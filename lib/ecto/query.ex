@@ -978,7 +978,9 @@ defmodule Ecto.Query do
   end
 
   defp do_exclude(%Ecto.Query{} = query, :where), do: %{query | wheres: []}
-  defp do_exclude(%Ecto.Query{} = query, :search), do: %{query | search: nil}
+  defp do_exclude(%Ecto.Query{} = query, :searches), do: %{query | searches: []}
+  defp do_exclude(%Ecto.Query{} = query, :search_limit), do: %{query | search_limit: nil}
+  defp do_exclude(%Ecto.Query{} = query, :search_offset), do: %{query | search_offset: nil}
   defp do_exclude(%Ecto.Query{} = query, :order_by), do: %{query | order_bys: []}
   defp do_exclude(%Ecto.Query{} = query, :group_by), do: %{query | group_bys: []}
   defp do_exclude(%Ecto.Query{} = query, :combinations), do: %{query | combinations: []}

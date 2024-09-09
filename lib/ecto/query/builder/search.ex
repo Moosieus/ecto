@@ -72,7 +72,6 @@ defmodule Ecto.Query.Builder.Search do
   # TODO:
   # * Reject multiple bindings in the same search line.
   # * Add the planned ParadeDB expressions.
-  # * Figure out how to support boost and others.
   # * Need to account for "subqueries" in a sense...
 
   def escape(expr, vars, env) do

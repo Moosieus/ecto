@@ -1,14 +1,25 @@
-* Implement all the query functions.
-* Allow keyword lists in `term_set` and `opts` of other functions.
-* Make search require an Ecto schema in the from clause.
+# v1 Todo:
+* Implement all the query functions:
+  * disjunction_max
+  * more_like_this
+  * term_set (accept keyword literal)
+  * boolean
+  * `and`/`or`/`not`.
+* Support the new sorting options.
+* Make searching require an Ecto schema in the from clause.
 * Properly handle multiple searches in one query.
-* Support the new ordering options.
-* Support querying `score_bm25` and mapping the results.
-* Support semantic search operations.
-* Support hybrid search.
+* Support querying and mapping `score_bm25`.
 * Support aggregations and facets.
-* Provide a DSL for creating the indexes (maybe).
-* Figure out what `fragment` looks like for search expressions.
+* Support highlighting.
+* Support hybrid search.
 * Write documentation and test coverage for everything.
 * Get some form of an audit done.
 * Find a patch'n'publish method for the respective versions of ecto.
+
+# vN Todo:
+* Add a DSL for migrations.
+* Allow dynamic schema names instead of enforcing `#{schema}_search_idx`.
+* Support comparison operators (`==`, `!=`, `>`, `<`, `>=`, `<=`).
+* Make ranges work dynamically.
+* Add support for `fragment` in the search queries.
+* Allow the schema to specify what fields are indexed.
