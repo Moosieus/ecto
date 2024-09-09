@@ -12,7 +12,7 @@ defmodule Ecto.Query.Builder.Search do
     :stable_sort
   ]
 
-  # TODO: Limit search queries to a single table binding.
+  # SEARCH_TODO: Limit search queries to a single table binding.
 
   @doc """
   Builds a quoted expression.
@@ -69,7 +69,7 @@ defmodule Ecto.Query.Builder.Search do
 
   ## Escape everything else
 
-  # TODO:
+  # SEARCH_TODO:
   # * Reject multiple bindings in the same search line.
   # * Add the planned ParadeDB expressions.
   # * Need to account for "subqueries" in a sense...

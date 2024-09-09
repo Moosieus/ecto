@@ -1862,10 +1862,20 @@ defmodule Ecto.Query do
     Builder.Filter.build(:where, :or, query, binding, expr, __CALLER__)
   end
 
+  @doc """
+  A ParadeDB search query.
+
+  SEARCH_TODO: add documentation.
+  """
   defmacro search(query, binding \\ [], expr) do
     Builder.Search.build(:and, query, binding, expr, __CALLER__)
   end
 
+  @doc """
+  Behaves exactly the same as `search` except it combines with any previous queries using `paradedb.should`.
+
+  SEARCH_TODO: add documentation.
+  """
   defmacro or_search(query, binding \\ [], expr) do
     Builder.Search.build(:or, query, binding, expr, __CALLER__)
   end

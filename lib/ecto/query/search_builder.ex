@@ -81,10 +81,10 @@ defmodule Ecto.Query.SearchBuilder do
     {{:{}, [], [:const_score, [], [query, score]]}, params_acc}
   end
 
-  def escape({:empty, _, [field]}, _type, params_acc, vars, _env) do
-    field = escape_field_param!(field, vars, :empty, 1)
+  def escape({:empty, _, [bind]}, _type, params_acc, vars, _env) do
+    bind = escape_bind!(bind, vars, :empty, 1)
 
-    {{:{}, [], [:empty, [], [field]]}, params_acc}
+    {{:{}, [], [:empty, [], [bind]]}, params_acc}
   end
 
   def escape({:exists, _, [field]}, _type, params_acc, vars, _env) do

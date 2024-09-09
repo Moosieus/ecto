@@ -6,5 +6,5 @@ defmodule Ecto.Query.SearchBuilderTest do
   import Ecto.Query.Builder
   doctest Ecto.Query.Builder
 
-  # todo: test the search query builder functions
+  # SEARCH_TODO: test the search query builder functions
 end
