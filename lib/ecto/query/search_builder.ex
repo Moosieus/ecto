@@ -81,19 +81,30 @@ defmodule Ecto.Query.SearchBuilder do
     {{:{}, [], [:const_score, [], [query, score]]}, params_acc}
   end
 
-  def escape({:empty, _, [bind]}, _type, params_acc, vars, _env) do
+  def escape({:disjunction_max, _, [bind, disjuncts]}, _type, params_acc, vars, env) do
+    bind = escape_bind!(bind, vars, :disjunction_max, 2)
+
+    {disjuncts, params_acc} =
+      Enum.map_reduce(disjuncts, params_acc, fn expr, params_acc ->
+        escape(expr, :any, params_acc, vars, env)
+      end)
+
+    {{:{}, [], [:disjunction_max, [], [bind, disjuncts]]}, params_acc}
+  end
+
+  def escape({:empty, _, [bind]}, _, params_acc, vars, _) do
     bind = escape_bind!(bind, vars, :empty, 1)
 
     {{:{}, [], [:empty, [], [bind]]}, params_acc}
   end
 
-  def escape({:exists, _, [field]}, _type, params_acc, vars, _env) do
+  def escape({:exists, _, [field]}, _, params_acc, vars, _) do
     field = escape_field_param!(field, vars, :exists, 1)
 
     {{:{}, [], [:exists, [], [field]]}, params_acc}
   end
 
-  def escape({:fuzzy_term, _, [field, value]}, _type, params_acc, vars, env) do
+  def escape({:fuzzy_term, _, [field, value]}, _, params_acc, vars, env) do
     field = escape_field_param!(field, vars, :fuzzy_term, 2)
     {value, params_acc} = Builder.escape(value, :string, params_acc, vars, env)
 
