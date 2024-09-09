@@ -164,14 +164,15 @@ defmodule Ecto.Query.SearchBuilder do
     {{:{}, [], [:term, [], [field, term]]}, params_acc}
   end
 
-  def escape({:term_set, _, [field, term_set]}, type, params_acc, vars, env) do
-    field = escape_field_param!(field, vars, :term_set, 2)
-    {field, params_acc} = Builder.escape(field, type, params_acc, vars, env)
-    {term_set, params_acc} = Builder.escape(term_set, :boolean, params_acc, vars, env)
+  def escape({:term_set, _, [bind, term_set]}, _type, params_acc, vars, env) do
+    bind = escape_bind!(bind, vars, :term_set, 2)
 
-    # todo: accept a keyword literal here, where each key must be a struct value.
+    {term_set, params_acc} =
+      Enum.map_reduce(term_set, params_acc, fn expr, params_acc ->
+        escape_term!(expr, params_acc, vars, env)
+      end)
 
-    {{:{}, [], [:term_set, [], [field, term_set]]}, params_acc}
+    {{:{}, [], [:term_set, [], [bind, term_set]]}, params_acc}
   end
 
   def escape({op, _, _}, _type, _params_acc, _vars, _env) when op in ~w(|| && !)a do
@@ -188,6 +189,17 @@ defmodule Ecto.Query.SearchBuilder do
 
   def escape(other, _type, _params_acc, _vars, _env) do
     error!("`#{Macro.to_string(other)}` is not a valid search expression")
+  end
+
+  defp escape_term!({:term, _, [field, term]}, params_acc, vars, env) do
+    field = escape_field_param!(field, vars, :term, 2)
+    {term, params_acc} = Builder.escape(term, :any, params_acc, vars, env)
+
+    {{:{}, [], [:term, [], [field, term]]}, params_acc}
+  end
+
+  defp escape_term!(expr, _, _, _) do
+    error!("All values in term_set/2 must be of term/2, got: `#{Macro.to_string(expr)}`")
   end
 
   # escapes the options specified by opt_types present in opts. Unspecified keys are ignored.
