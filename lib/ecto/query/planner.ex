@@ -4,6 +4,7 @@ defmodule Ecto.Query.Planner do
 
   alias Ecto.Query.{
     BooleanExpr,
+    SearchExpr,
     ByExpr,
     DynamicExpr,
     FromExpr,
@@ -1030,6 +1031,9 @@ defmodule Ecto.Query.Planner do
     # Current strategy appends [{:subquery, i, cache}], where cache is the cache key for this subquery.
     {op, expr, Enum.map(subqueries, fn %{cache: cache} -> {:subquery, cache} end)}
   end
+
+  # SEARCH_TODO: Is this correct?
+  defp expr_to_cache(%SearchExpr{op: op, expr: expr}), do: {op, expr}
 
   defp expr_to_cache(%LimitExpr{expr: expr, with_ties: with_ties}), do: {with_ties, expr}
 

@@ -6,6 +6,7 @@ defmodule Ecto.Query.SearchBuilder do
     error!: 1,
     escape_field!: 3,
     escape_var!: 2,
+    find_var!: 2
   ]
 
   @typedoc """
@@ -21,12 +22,9 @@ defmodule Ecto.Query.SearchBuilder do
 
   @typedoc """
   The accumulator during escape.
-
-  If the subqueries field is available, subquery escaping must take place.
   """
   @type acc :: %{
-    optional(:subqueries) => list(Macro.t()),
-    optional(:take) => %{non_neg_integer => Macro.t()},
+    optional(:bind) => non_neg_integer,
     optional(any) => any
   }
 
@@ -41,71 +39,68 @@ defmodule Ecto.Query.SearchBuilder do
   """
   @spec escape(
           Macro.t(),
-          quoted_type | {:in, quoted_type} | {:out, quoted_type} | {:splice, quoted_type},
           {list, acc},
           Keyword.t(),
           Macro.Env.t() | {Macro.Env.t(), fun}
         ) :: {Macro.t(), {list, acc}}
-  def escape(expr, type, params_acc, vars, env)
+  def escape(expr, params_acc, vars, env)
 
-  def escape({:is_nil, _, [field]}, _type, params_acc, vars, _env) do
-    field = escape_field_param!(field, vars, :is_nil, 1)
+  def escape({:is_nil, _, [field]}, params_acc, vars, _env) do
+    {field, params_acc} = escape_field_param!(field, params_acc, vars, :is_nil, 1)
 
     {{:{}, [], [:is_nil, [], [field]]}, params_acc}
   end
 
-  def escape({:parse, _, [bind, parade_ql]}, _type, params_acc, vars, env) do
-    bind = escape_bind!(bind, vars, :parse, 2)
+  def escape({:parse, _, [bind, parade_ql]}, params_acc, vars, env) do
+    {bind, params_acc} = escape_bind!(bind, params_acc, vars, :parse, 2)
     {parade_ql, params_acc} = Builder.escape(parade_ql, :string, params_acc, vars, env)
 
     {{:{}, [], [:parse, [], [bind, parade_ql]]}, params_acc}
   end
 
-  def escape({:all, _, [bind]}, _, params_acc, vars, _) do
-    bind = escape_bind!(bind, vars, :all, 1)
+  def escape({:all, _, [bind]}, params_acc, vars, _) do
+    {bind, params_acc} = escape_bind!(bind, params_acc, vars, :all, 1)
 
     {{:{}, [], [:all, [], [bind]]}, params_acc}
   end
 
-  def escape({:boost, _, [query, boost]}, _, params_acc, vars, env) do
-    {query, params_acc} = escape(query, :boolean, params_acc, vars, env)
+  def escape({:boost, _, [query, boost]}, params_acc, vars, env) do
+    {query, params_acc} = escape(query, params_acc, vars, env)
     {boost, params_acc} = Builder.escape(boost, :float, params_acc, vars, env)
 
     {{:{}, [], [:boost, [], [query, boost]]}, params_acc}
   end
 
-  def escape({:const_score, _, [query, score]}, _, params_acc, vars, env) do
-    {query, params_acc} = escape(query, :boolean, params_acc, vars, env)
+  def escape({:const_score, _, [query, score]}, params_acc, vars, env) do
+    {query, params_acc} = escape(query, params_acc, vars, env)
     {score, params_acc} = Builder.escape(score, :float, params_acc, vars, env)
 
     {{:{}, [], [:const_score, [], [query, score]]}, params_acc}
   end
 
-  def escape({:disjunction_max, _, [bind, disjuncts]}, _type, params_acc, vars, env) do
-    bind = escape_bind!(bind, vars, :disjunction_max, 2)
-
+  def escape({:disjunction_max, _, [disjuncts]}, params_acc, vars, env) do
     {disjuncts, params_acc} =
       Enum.map_reduce(disjuncts, params_acc, fn expr, params_acc ->
-        escape(expr, :any, params_acc, vars, env)
+        escape(expr, params_acc, vars, env)
       end)
 
-    {{:{}, [], [:disjunction_max, [], [bind, disjuncts]]}, params_acc}
+    {{:{}, [], [:disjunction_max, [], [disjuncts]]}, params_acc}
   end
 
-  def escape({:empty, _, [bind]}, _, params_acc, vars, _) do
-    bind = escape_bind!(bind, vars, :empty, 1)
+  def escape({:empty, _, [bind]}, params_acc, vars, _) do
+    {bind, params_acc} = escape_bind!(bind, params_acc, vars, :empty, 1)
 
     {{:{}, [], [:empty, [], [bind]]}, params_acc}
   end
 
-  def escape({:exists, _, [field]}, _, params_acc, vars, _) do
-    field = escape_field_param!(field, vars, :exists, 1)
+  def escape({:exists, _, [field]}, params_acc, vars, _) do
+    {field, params_acc} = escape_field_param!(field, params_acc, vars, :exists, 1)
 
     {{:{}, [], [:exists, [], [field]]}, params_acc}
   end
 
-  def escape({:fuzzy_term, _, [field, value]}, _, params_acc, vars, env) do
-    field = escape_field_param!(field, vars, :fuzzy_term, 2)
+  def escape({:fuzzy_term, _, [field, value]}, params_acc, vars, env) do
+    {field, params_acc} = escape_field_param!(field, params_acc, vars, :fuzzy_term, 2)
     {value, params_acc} = Builder.escape(value, :string, params_acc, vars, env)
 
     {{:{}, [], [:fuzzy_term, [], [field, value]]}, params_acc}
@@ -113,47 +108,47 @@ defmodule Ecto.Query.SearchBuilder do
 
   @fuzzy_option_types [distance: :integer, transpose_cost_one: :boolean, prefix: :boolean]
 
-  def escape({:fuzzy_term, _, [field, value, opts]}, _type, params_acc, vars, env) do
-    field = escape_field_param!(field, vars, :fuzzy_term, 3)
+  def escape({:fuzzy_term, _, [field, value, opts]}, params_acc, vars, env) do
+    {field, params_acc} = escape_field_param!(field, params_acc, vars, :fuzzy_term, 3)
     {value, params_acc} = Builder.escape(value, :string, params_acc, vars, env)
     {opts, params_acc} = escape_options!(opts, @fuzzy_option_types, params_acc, vars, env)
 
     {{:{}, [], [:fuzzy_term, [], [field, value, opts]]}, params_acc}
   end
 
-  def escape({:phrase, _, [field, phrases]}, _type, params_acc, vars, env) do
-    field = escape_field_param!(field, vars, :phrase, 2)
+  def escape({:phrase, _, [field, phrases]}, params_acc, vars, env) do
+    {field, params_acc} = escape_field_param!(field, params_acc, vars, :phrase, 2)
     {phrases, params_acc} = Builder.escape(phrases, {:array, :string}, params_acc, vars, env)
 
     {{:{}, [], [:phrase, [], [field, phrases]]}, params_acc}
   end
 
-  def escape({:phrase, _, [field, phrases, slop]}, _type, params_acc, vars, env) do
-    field = escape_field_param!(field, vars, :phrase, 3)
+  def escape({:phrase, _, [field, phrases, slop]}, params_acc, vars, env) do
+    {field, params_acc} = escape_field_param!(field, params_acc, vars, :phrase, 3)
     {phrases, params_acc} = Builder.escape(phrases, {:array, :string}, params_acc, vars, env)
     {slop, params_acc} = Builder.escape(slop, :integer, params_acc, vars, env)
 
     {{:{}, [], [:phrase, [], [field, phrases, slop]]}, params_acc}
   end
 
-  def escape({:phrase_prefix, _, [field, phrases]}, _type, params_acc, vars, env) do
-    field = escape_field_param!(field, vars, :phrase_prefix, 2)
+  def escape({:phrase_prefix, _, [field, phrases]}, params_acc, vars, env) do
+    {field, params_acc} = escape_field_param!(field, params_acc, vars, :phrase_prefix, 2)
     {phrases, params_acc} = Builder.escape(phrases, {:array, :string}, params_acc, vars, env)
 
     {{:{}, [], [:phrase_prefix, [], [field, phrases]]}, params_acc}
   end
 
-  def escape({:phrase_prefix, _, [field, phrases, max_expansion]}, _type, params_acc, vars, env) do
-    field = escape_field_param!(field, vars, :phrase_prefix, 3)
+  def escape({:phrase_prefix, _, [field, phrases, max_expansion]}, params_acc, vars, env) do
+    {field, params_acc} = escape_field_param!(field, params_acc, vars, :phrase_prefix, 3)
     {phrases, params_acc} = Builder.escape(phrases, {:array, :string}, params_acc, vars, env)
     {max_expansion, params_acc} = Builder.escape(max_expansion, :integer, params_acc, vars, env)
 
     {{:{}, [], [:phrase_prefix, [], [field, phrases, max_expansion]]}, params_acc}
   end
 
-  def escape({range, _, [field, start, stop, bounds]}, _type, params_acc, vars, env)
+  def escape({range, _, [field, start, stop, bounds]}, params_acc, vars, env)
       when range in ~w(int4range int8range daterange tsrange tstzrange)a do
-    field = escape_field_param!(field, vars, range, 4)
+    {field, params_acc} = escape_field_param!(field, params_acc, vars, range, 4)
     {start, params_acc} = Builder.escape(start, :any, params_acc, vars, env)
     {stop, params_acc} = Builder.escape(stop, :any, params_acc, vars, env)
     {bounds, params_acc} = Builder.escape(bounds, :string, params_acc, vars, env)
@@ -161,22 +156,22 @@ defmodule Ecto.Query.SearchBuilder do
     {{:{}, [], [range, [], [field, start, stop, bounds]]}, params_acc}
   end
 
-  def escape({:regex, _, [field, pattern]}, _type, params_acc, vars, env) do
-    field = escape_field_param!(field, vars, :regex, 2)
+  def escape({:regex, _, [field, pattern]}, params_acc, vars, env) do
+    {field, params_acc} = escape_field_param!(field, params_acc, vars, :regex, 2)
     {pattern, params_acc} = Builder.escape(pattern, :string, params_acc, vars, env)
 
     {{:{}, [], [:regex, [], [field, pattern]]}, params_acc}
   end
 
-  def escape({:term, _, [field, term]}, _type, params_acc, vars, env) do
-    field = escape_field_param!(field, vars, :term, 2)
+  def escape({:term, _, [field, term]}, params_acc, vars, env) do
+    {field, params_acc} = escape_field_param!(field, params_acc, vars, :term, 2)
     {term, params_acc} = Builder.escape(term, :any, params_acc, vars, env)
 
     {{:{}, [], [:term, [], [field, term]]}, params_acc}
   end
 
-  def escape({:term_set, _, [bind, term_set]}, _type, params_acc, vars, env) do
-    bind = escape_bind!(bind, vars, :term_set, 2)
+  def escape({:term_set, _, [bind, term_set]}, params_acc, vars, env) do
+    {bind, params_acc} = escape_bind!(bind, params_acc, vars, :term_set, 2)
 
     {term_set, params_acc} =
       Enum.map_reduce(term_set, params_acc, fn expr, params_acc ->
@@ -186,7 +181,7 @@ defmodule Ecto.Query.SearchBuilder do
     {{:{}, [], [:term_set, [], [bind, term_set]]}, params_acc}
   end
 
-  def escape({op, _, _}, _type, _params_acc, _vars, _env) when op in ~w(|| && !)a do
+  def escape({op, _, _}, _params_acc, _vars, _env) when op in ~w(|| && !)a do
     error!(
       "short-circuit operators are not supported: `#{op}`. " <>
         "Instead use boolean operators: `and`, `or`, and `not`"
@@ -194,16 +189,16 @@ defmodule Ecto.Query.SearchBuilder do
   end
 
   # Unnecessary parentheses around an expression
-  def escape({:__block__, _, [expr]}, type, params_acc, vars, env) do
-    escape(expr, type, params_acc, vars, env)
+  def escape({:__block__, _, [expr]}, params_acc, vars, env) do
+    escape(expr, params_acc, vars, env)
   end
 
-  def escape(other, _type, _params_acc, _vars, _env) do
+  def escape(other, _params_acc, _vars, _env) do
     error!("`#{Macro.to_string(other)}` is not a valid search expression")
   end
 
   defp escape_term!({:term, _, [field, term]}, params_acc, vars, env) do
-    field = escape_field_param!(field, vars, :term, 2)
+    field = escape_field_param!(field, params_acc, vars, :term, 2)
     {term, params_acc} = Builder.escape(term, :any, params_acc, vars, env)
 
     {{:{}, [], [:term, [], [field, term]]}, params_acc}
@@ -243,24 +238,49 @@ defmodule Ecto.Query.SearchBuilder do
     {[acc ++ {key, expr}], params_acc}
   end
 
-  defp escape_bind!({var, _, context}, vars, _, _) when is_atom(var) and is_atom(context) do
-    escape_var!(var, vars)
+  defp escape_bind!({var, _, context}, params_acc, vars, operator, arity)
+       when is_atom(var) and is_atom(context) do
+    params_acc = validate_bind!(var, params_acc, vars, operator, arity)
+
+    {escape_var!(var, vars), params_acc}
   end
 
-  defp escape_bind!(bind, _vars, operator, arity) do
-    error!("first argument of `#{operator}/#{arity}` must be a source, got: `#{Macro.to_string(bind)}`")
+  defp escape_bind!(arg, _params_acc, _vars, operator, arity) do
+    error!("first argument of `#{operator}/#{arity}` `#{Macro.to_string(arg)}` must be a bind.")
   end
 
-  defp escape_field_param!({{:., _, [{var, _, context} = bind, field]}, _, []}, vars, _, _)
+  defp escape_field_param!({{:., _, [{var, _, context} = bind, field]}, _, []}, params_acc, vars, operator, arity)
        when is_atom(var) and is_atom(context) and is_atom(field) do
-    escape_field!(bind, field, vars)
+    params_acc = validate_bind!(var, params_acc, vars, operator, arity)
+
+    {escape_field!(bind, field, vars), params_acc}
   end
 
-  defp escape_field_param!({:field, _, [callee, field]}, vars, _, _) do
-    escape_field!(callee, field, vars)
+  defp escape_field_param!({:field, _, [callee, field]}, params_acc, vars, operator, arity) do
+    params_acc = validate_bind!(callee, params_acc, vars, operator, arity)
+
+    {escape_field!(callee, field, vars), params_acc}
   end
 
-  defp escape_field_param!(arg, _, operator, arity) do
+  defp escape_field_param!(arg, _, _, operator, arity) do
     error!("first argument of `#{operator}/#{arity}` must be a bound field, got: `#{Macro.to_string(arg)}`")
+  end
+
+  # no prior binds
+  defp validate_bind!(var, {params, %{bind: nil}}, vars, _, _) when is_atom(var) do
+    {params, %{bind: {var, find_var!(var, vars)}}}
+  end
+
+  # binds match
+  defp validate_bind!(var, {_, %{bind: {var, _}}} = params_acc, _, _, _) do
+    params_acc
+  end
+
+  # binds don't match
+  defp validate_bind!(var, {_, %{bind: {bind, _}}}, _, operator, arity) do
+    error!("""
+    search expressions can only bind to a single source, \
+    call to `#{operator}/#{arity}` attempted bind to `#{var}` when `#{bind}` is already bound.
+    """)
   end
 end

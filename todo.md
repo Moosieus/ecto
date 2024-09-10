@@ -1,7 +1,7 @@
 # v1 Todo:
 * Implement all the query functions:
-  * disjunction_max
   * more_like_this
+  * disjunction_max/3 (with tie_breaker)
   * boolean
   * `and`/`or`/`not`.
 * Support the new sorting options.

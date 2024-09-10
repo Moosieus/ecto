@@ -42,8 +42,7 @@ defmodule Ecto.Query.Builder.Search do
         type in @search_options ->
           build_option(type, expr, params, env)
         type == :search ->
-          subqueries = Enum.reverse(acc.subqueries)
-          build_query(op, expr, params, subqueries, env)
+          build_query(op, expr, params, acc.bind, env)
       end
 
     Builder.apply_query(query, __MODULE__, [type, quoted], env)
@@ -75,17 +74,17 @@ defmodule Ecto.Query.Builder.Search do
   # * Need to account for "subqueries" in a sense...
 
   def escape(expr, vars, env) do
-    expr = SearchBuilder.escape(expr, :boolean, {[], %{subqueries: []}}, vars, env)
+    expr = SearchBuilder.escape(expr, {[], %{bind: nil}}, vars, env)
 
     {:search, expr}
   end
 
-  defp build_query(op, expr, params, subqueries, env) do
-    quote do: %Ecto.Query.BooleanExpr{
+  defp build_query(op, expr, params, bind, env) do
+    quote do: %Ecto.Query.SearchExpr{
       expr: unquote(expr),
       op: unquote(op),
       params: unquote(params),
-      subqueries: unquote(subqueries),
+      bind: unquote(bind),
       file: unquote(env.file),
       line: unquote(env.line)
     }

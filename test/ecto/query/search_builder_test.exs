@@ -3,7 +3,7 @@ Code.require_file "../../../integration_test/support/types.exs", __DIR__
 defmodule Ecto.Query.SearchBuilderTest do
   use ExUnit.Case, async: true
 
-  import Ecto.Query.SearchBuilder
+  # import Ecto.Query.SearchBuilder
   doctest Ecto.Query.SearchBuilder
 
   # SEARCH_TODO: test all the queries
