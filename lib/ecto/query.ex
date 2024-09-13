@@ -13,6 +13,17 @@ defmodule Ecto.SubQuery do
   @type t :: %__MODULE__{}
 end
 
+defmodule Ecto.SearchQuery do
+  @moduledoc false
+  # A struct representing ParadeDB search queries.
+  # Search expressions are saved to a list and accumulated into queries during
+  # the planning step.
+
+  defstruct [:queries, :limit, :offset, :order_by, :index]
+
+  @type t :: %__MODULE__{}
+end
+
 defmodule Ecto.Query do
   @moduledoc ~S"""
   Provides the Query DSL.
@@ -415,11 +426,7 @@ defmodule Ecto.Query do
             lock: nil,
             windows: [],
             with_ctes: nil,
-            searches: [],
-            search_limit: nil,
-            search_offset: nil,
-            search_stable_sort: nil
-
+            searches: []
 
   defmodule FromExpr do
     @moduledoc false
@@ -984,8 +991,6 @@ defmodule Ecto.Query do
 
   defp do_exclude(%Ecto.Query{} = query, :where), do: %{query | wheres: []}
   defp do_exclude(%Ecto.Query{} = query, :searches), do: %{query | searches: []}
-  defp do_exclude(%Ecto.Query{} = query, :search_limit), do: %{query | search_limit: nil}
-  defp do_exclude(%Ecto.Query{} = query, :search_offset), do: %{query | search_offset: nil}
   defp do_exclude(%Ecto.Query{} = query, :order_by), do: %{query | order_bys: []}
   defp do_exclude(%Ecto.Query{} = query, :group_by), do: %{query | group_bys: []}
   defp do_exclude(%Ecto.Query{} = query, :combinations), do: %{query | combinations: []}

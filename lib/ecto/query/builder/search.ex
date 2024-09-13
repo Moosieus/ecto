@@ -108,14 +108,14 @@ defmodule Ecto.Query.Builder.Search do
   The callback applied by `build/4` to build the query.
   """
   @spec apply(Ecto.Queryable.t, :search | :limit | :offset | :stable_sort, term) :: Ecto.Query.t
-  def apply(%Ecto.Query{} = query, :limit, expr), do:
-    %{query | search_limit: expr}
+  # def apply(%Ecto.Query{} = query, :limit, expr), do:
+  #   %{query | search_limit: expr}
 
-  def apply(%Ecto.Query{} = query, :offset, expr), do:
-    %{query | search_offset: expr}
+  # def apply(%Ecto.Query{} = query, :offset, expr), do:
+  #   %{query | search_offset: expr}
 
-  def apply(%Ecto.Query{} = query, :stable_sort, expr), do:
-    %{query | search_stable_sort: expr}
+  # def apply(%Ecto.Query{} = query, :stable_sort, expr), do:
+  #   %{query | search_stable_sort: expr}
 
   def apply(%Ecto.Query{searches: searches} = query, :search, expr), do:
     %{query | searches: searches ++ [expr]}

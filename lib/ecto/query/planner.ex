@@ -14,7 +14,9 @@ defmodule Ecto.Query.Planner do
     LimitExpr
   }
 
-  if map_size(%Ecto.Query{}) != 25 do
+  alias Ecto.SearchQuery
+
+  if map_size(%Ecto.Query{}) != 22 do
     raise "Ecto.Query match out of date in builder"
   end
 
@@ -242,18 +244,35 @@ defmodule Ecto.Query.Planner do
       filter_and_reraise(e, __STACKTRACE__)
   end
 
+  defp group_searches(%{searches: []}), do: %{}
+
+  defp group_searches(%{searches: search_exprs}) when is_list(search_exprs) do
+    Enum.reduce(search_exprs, %{}, fn %{bind: {_, ix}} = search_expr, acc ->
+      case Map.fetch(acc, ix) do
+        {:ok, %{queries: queries} = search_query} ->
+          Map.put(acc, ix, %{search_query | queries: [search_expr | queries]})
+        :error ->
+          Map.put(acc, ix, %SearchQuery{queries: [search_expr]})
+      end
+    end)
+  end
+
+  defp group_searches(_), do: %{}
+
   @doc """
   Prepare all sources, by traversing and expanding from, joins, subqueries.
   """
   def plan_sources(query, adapter, cte_names) do
-    {from, source} = plan_from(query, adapter, cte_names)
+    grouped_searches = group_searches(query)
+
+    {from, source} = plan_from(query, grouped_searches, adapter, cte_names)
 
     # Set up the initial source so we can refer
     # to the parent in subqueries in joins
     query = %{query | sources: {source}}
 
     {joins, sources, tail_sources} =
-      plan_joins(query, [source], length(query.joins), adapter, cte_names)
+      plan_joins(query, grouped_searches, [source], length(query.joins), adapter, cte_names)
 
     %{
       query
@@ -263,12 +282,13 @@ defmodule Ecto.Query.Planner do
     }
   end
 
-  defp plan_from(%{from: nil} = query, _adapter, _cte_names) do
+  defp plan_from(%{from: nil} = query, _grouped_searches, _adapter, _cte_names) do
     error!(query, "query must have a from expression")
   end
 
   defp plan_from(
          %{from: %{source: {kind, _, _}}, preloads: preloads, assocs: assocs} = query,
+         _grouped_searches,
          _adapter,
          _cte_names
        )
@@ -276,13 +296,14 @@ defmodule Ecto.Query.Planner do
     error!(query, "cannot preload associations with a #{kind} source")
   end
 
-  defp plan_from(%{from: from} = query, adapter, cte_names) do
-    plan_source(query, from, adapter, cte_names)
+  defp plan_from(%{from: from} = query, grouped_searches, adapter, cte_names) do
+    plan_source(query, from, grouped_searches[0], adapter, cte_names)
   end
 
   defp plan_source(
          query,
          %{source: %Ecto.SubQuery{} = subquery, prefix: prefix} = expr,
+         _searches,
          adapter,
          cte_names
        ) do
@@ -290,7 +311,7 @@ defmodule Ecto.Query.Planner do
     {%{expr | source: subquery}, subquery}
   end
 
-  defp plan_source(query, %{source: {nil, schema}} = expr, _adapter, cte_names)
+  defp plan_source(query, %{source: {nil, schema}} = expr, search, _adapter, cte_names)
        when is_atom(schema) and schema != nil do
     source = schema.__schema__(:source)
     source_prefix = plan_source_schema_prefix(expr, schema)
@@ -301,10 +322,16 @@ defmodule Ecto.Query.Planner do
         _ -> source_prefix || query.prefix
       end
 
+    source =
+      case search do
+        nil -> source
+        search -> %{search | index: source <> "_search_idx"}
+      end
+
     {%{expr | source: {source, schema}}, {source, schema, prefix}}
   end
 
-  defp plan_source(query, %{source: {source, schema}, prefix: prefix} = expr, _adapter, cte_names)
+  defp plan_source(query, %{source: {source, schema}, prefix: prefix} = expr, search, _adapter, cte_names)
        when is_binary(source) and is_atom(schema) do
     prefix =
       case cte_names do
@@ -312,19 +339,26 @@ defmodule Ecto.Query.Planner do
         _ -> prefix || query.prefix
       end
 
-    {expr, {source, schema, prefix}}
+    source =
+      case search do
+        nil -> source
+        search -> %{search | index: source <> "_search_idx"}
+      end
+
+    {%{expr | source: {source, schema}}, {source, schema, prefix}}
   end
 
   defp plan_source(
          _query,
          %{source: {kind, _, _} = source, prefix: nil} = expr,
+         _search,
          _adapter,
          _cte_names
        )
        when kind in [:fragment, :values],
        do: {expr, source}
 
-  defp plan_source(query, %{source: {kind, _, _}, prefix: prefix} = expr, _adapter, _cte_names)
+  defp plan_source(query, %{source: {kind, _, _}, prefix: prefix} = expr, _search, _adapter, _cte_names)
        when kind in [:fragment, :values],
        do: error!(query, expr, "cannot set prefix: #{inspect(prefix)} option for #{kind} sources")
 
@@ -561,13 +595,14 @@ defmodule Ecto.Query.Planner do
   defp valid_subquery_value?(arg) when is_atom(arg), do: is_boolean(arg)
   defp valid_subquery_value?(_), do: true
 
-  defp plan_joins(query, sources, offset, adapter, cte_names) do
-    plan_joins(query.joins, query, [], sources, [], 1, offset, adapter, cte_names)
+  defp plan_joins(query, grouped_searches, sources, offset, adapter, cte_names) do
+    plan_joins(query.joins, query, grouped_searches, [], sources, [], 1, offset, adapter, cte_names)
   end
 
   defp plan_joins(
          [%JoinExpr{assoc: {ix, assoc}, qual: qual, on: on, prefix: prefix} = join | t],
          query,
+         grouped_searches,
          joins,
          sources,
          tail_sources,
@@ -615,10 +650,10 @@ defmodule Ecto.Query.Planner do
     last_ix = length(child.joins)
     source_ix = counter
 
-    {_, child_from_source} = plan_source(child, child.from, adapter, cte_names)
+    {_, child_from_source} = plan_source(child, child.from, grouped_searches[source_ix], adapter, cte_names)
 
     {child_joins, child_sources, child_tail} =
-      plan_joins(child, [child_from_source], offset + last_ix - 1, adapter, cte_names)
+      plan_joins(child, %{}, [child_from_source], offset + last_ix - 1, adapter, cte_names)
 
     # Rewrite joins indexes as mentioned above
     child_joins = Enum.map(child_joins, &rewrite_join(&1, qual, ix, last_ix, source_ix, offset))
@@ -632,6 +667,7 @@ defmodule Ecto.Query.Planner do
     plan_joins(
       t,
       query,
+      grouped_searches,
       attach_on(child_joins, on) ++ joins,
       [current_source | sources],
       child_sources ++ tail_sources,
@@ -649,6 +685,7 @@ defmodule Ecto.Query.Planner do
            | t
          ],
          query,
+         grouped_searches,
          joins,
          sources,
          tail_sources,
@@ -672,12 +709,13 @@ defmodule Ecto.Query.Planner do
       } ->
         join_query = rewrite_prefix(join_query, query.prefix)
         from = rewrite_prefix(join_query.from, prefix)
-        {from, source} = plan_source(join_query, from, adapter, cte_names)
+        {from, source} = plan_source(join_query, from, grouped_searches[counter], adapter, cte_names)
         [join] = attach_on(query_to_joins(qual, from.source, join_query, counter), on)
 
         plan_joins(
           t,
           query,
+          grouped_searches,
           [join | joins],
           [source | sources],
           tail_sources,
@@ -701,6 +739,7 @@ defmodule Ecto.Query.Planner do
   defp plan_joins(
          [%JoinExpr{} = join | t],
          query,
+         grouped_searches,
          joins,
          sources,
          tail_sources,
@@ -709,11 +748,12 @@ defmodule Ecto.Query.Planner do
          adapter,
          cte_names
        ) do
-    {join, source} = plan_source(query, %{join | ix: counter}, adapter, cte_names)
+    {join, source} = plan_source(query, %{join | ix: counter}, grouped_searches[counter], adapter, cte_names)
 
     plan_joins(
       t,
       query,
+      grouped_searches,
       [join | joins],
       [source | sources],
       tail_sources,
@@ -727,6 +767,7 @@ defmodule Ecto.Query.Planner do
   defp plan_joins(
          [],
          _query,
+         _grouped_searches,
          joins,
          sources,
          tail_sources,
@@ -2339,9 +2380,6 @@ defmodule Ecto.Query.Planner do
     join: :joins,
     where: :wheres,
     search: :searches,
-    search_limit: :search_limit,
-    search_offset: :search_offset,
-    search_stable_sort: :search_stable_sort,
     group_by: :group_bys,
     having: :havings,
     windows: :windows,
