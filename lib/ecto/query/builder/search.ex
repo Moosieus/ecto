@@ -9,10 +9,9 @@ defmodule Ecto.Query.Builder.Search do
   @search_options [
     :limit,
     :offset,
-    :stable_sort
+    :stable_sort,
+    :order_by
   ]
-
-  # SEARCH_TODO: Limit search queries to a single table binding.
 
   @doc """
   Builds a quoted expression.
@@ -40,7 +39,7 @@ defmodule Ecto.Query.Builder.Search do
     quoted =
       cond do
         type in @search_options ->
-          build_option(type, expr, params, env)
+          build_option(type, expr, params, acc.bind, env)
         type == :search ->
           build_query(op, expr, params, acc.bind, env)
       end
@@ -90,10 +89,11 @@ defmodule Ecto.Query.Builder.Search do
     }
   end
 
-  defp build_option(type, expr, params, env) when type in @search_options do
-    quote do: %Ecto.Query.QueryExpr{
+  defp build_option(type, expr, params, bind, env) when type in @search_options do
+    quote do: %Ecto.Query.SearchOpt{
       expr: unquote(expr),
       params: unquote(params),
+      bind: unquote(bind),
       file: unquote(env.file),
       line: unquote(env.line)
     }

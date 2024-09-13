@@ -652,8 +652,11 @@ defmodule Ecto.Query.Planner do
 
     {_, child_from_source} = plan_source(child, child.from, grouped_searches[source_ix], adapter, cte_names)
 
+    # adjusted to match the assoc's offset
+    offset_grouped_searches = %{1 => Map.get(grouped_searches, counter)}
+
     {child_joins, child_sources, child_tail} =
-      plan_joins(child, %{}, [child_from_source], offset + last_ix - 1, adapter, cte_names)
+      plan_joins(child, offset_grouped_searches, [child_from_source], offset + last_ix - 1, adapter, cte_names)
 
     # Rewrite joins indexes as mentioned above
     child_joins = Enum.map(child_joins, &rewrite_join(&1, qual, ix, last_ix, source_ix, offset))

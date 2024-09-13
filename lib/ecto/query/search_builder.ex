@@ -170,15 +170,17 @@ defmodule Ecto.Query.SearchBuilder do
     {{:{}, [], [:term, [], [field, term]]}, params_acc}
   end
 
-  def escape({:term_set, _, [bind, term_set]}, params_acc, vars, env) do
-    {bind, params_acc} = escape_bind!(bind, params_acc, vars, :term_set, 2)
-
+  def escape({:term_set, _, [term_set]}, params_acc, vars, env) do
     {term_set, params_acc} =
       Enum.map_reduce(term_set, params_acc, fn expr, params_acc ->
         escape_term!(expr, params_acc, vars, env)
       end)
 
-    {{:{}, [], [:term_set, [], [bind, term_set]]}, params_acc}
+    {{:{}, [], [:term_set, [], [term_set]]}, params_acc}
+  end
+
+  def escape({op, _, _} = expr, _params_acc, _vars, _env) when op in ~w(limit offset stable_sort order_by)a do
+    error!("`#{Macro.to_string(expr)}` is only allowed as a top-level expression of a search call.")
   end
 
   def escape({op, _, _}, _params_acc, _vars, _env) when op in ~w(|| && !)a do

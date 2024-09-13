@@ -458,6 +458,12 @@ defmodule Ecto.Query do
     defstruct [:op, :expr, :file, :line, params: [], bind: nil]
   end
 
+  defmodule SearchOpt do
+    @moduledoc false
+    defstruct [:expr, :file, :line, params: [], bind: nil]
+  end
+
+
   defmodule SelectExpr do
     @moduledoc false
     defstruct [:expr, :file, :line, :fields, params: [], take: %{}, subqueries: [], aliases: %{}]
