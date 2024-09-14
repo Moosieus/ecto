@@ -3,6 +3,7 @@
 * Figure out escaping options for atoms:
   * Allow `:desc` and `:asc` to be passed as variables to `order_by/2`
   * Allow `:must`, `:must_not`, and `:should` to be passed as variables in `boolean/2`
+* Fix the inspection that's broken due to the search list
 * Figure out the compile time query building.
 * Figure out the search query plan caching.
 * Support querying and mapping `score_bm25`.
