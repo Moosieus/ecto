@@ -117,6 +117,16 @@ defmodule Ecto.Query.SearchBuilder do
     {{:{}, [], [:disjunction_max, [], [disjuncts]]}, params_acc}
   end
 
+  def escape({:disjunction_max, _, [disjuncts, tie_breaker]}, params_acc, vars, env) do
+    {disjuncts, params_acc} =
+      Enum.map_reduce(disjuncts, params_acc, fn expr, params_acc ->
+        escape(expr, params_acc, vars, env)
+      end)
+    {tie_breaker, params_acc} = Builder.escape(tie_breaker, :integer, params_acc, vars, env)
+
+    {{:{}, [], [:disjunction_max, [], [disjuncts, tie_breaker]]}, params_acc}
+  end
+
   def escape({:empty, _, [bind]}, params_acc, vars, _) do
     {_bind, params_acc} = escape_bind!(bind, params_acc, vars, :empty, 1)
 
