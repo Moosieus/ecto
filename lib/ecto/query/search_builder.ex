@@ -64,6 +64,36 @@ defmodule Ecto.Query.SearchBuilder do
     {{:{}, [], [:all, [], []]}, params_acc}
   end
 
+  def escape({:boolean, _, [condition, queries]}, params_acc, vars, env)
+      when condition in [:must, :must_not, :should] do
+    {queries, params_acc} =
+      Enum.map_reduce(queries, params_acc, fn expr, params_acc ->
+        escape_term!(expr, params_acc, vars, env)
+      end)
+
+    {{:{}, [], [:boolean, [], [condition, queries]]}, params_acc}
+  end
+
+  def escape({:and, _, [left, right]}, params_acc, vars, env) do
+    {left, params_acc} = escape(left, params_acc, vars, env)
+    {right, params_acc} = escape(right, params_acc, vars, env)
+
+    {{:{}, [], [:boolean, [], [:must, [left, right]]]}, params_acc}
+  end
+
+  def escape({:or, _, [left, right]}, params_acc, vars, env) do
+    {left, params_acc} = escape(left, params_acc, vars, env)
+    {right, params_acc} = escape(right, params_acc, vars, env)
+
+    {{:{}, [], [:boolean, [], [:should, [left, right]]]}, params_acc}
+  end
+
+  def escape({:not, _, [query]}, params_acc, vars, env) do
+    {query, params_acc} = escape(query, params_acc, vars, env)
+
+    {{:{}, [], [:boolean, [], [:must_not, [query]]]}, params_acc}
+  end
+
   def escape({:boost, _, [query, boost]}, params_acc, vars, env) do
     {query, params_acc} = escape(query, params_acc, vars, env)
     {boost, params_acc} = Builder.escape(boost, :float, params_acc, vars, env)

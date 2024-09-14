@@ -2,8 +2,9 @@
 * Implement all the query functions:
   * more_like_this
   * disjunction_max/3 (with tie_breaker)
-  * boolean
-  * `and`/`or`/`not`.
+* Figure out escaping options for atoms:
+  * Allow `:desc` and `:asc` to be passed as variables to `order_by/2`
+  * Allow `:must`, `:must_not`, and `:should` to be passed as variables in `boolean/2`
 * Figure out the compile time query building.
 * Figure out the search query plan caching.
 * Support querying and mapping `score_bm25`.
