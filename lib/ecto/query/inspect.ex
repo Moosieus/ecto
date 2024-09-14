@@ -105,7 +105,9 @@ defimpl Inspect, for: Ecto.Query do
     limit = limit(query.limit, names)
 
     wheres = bool_exprs(%{and: :where, or: :or_where}, query.wheres, names)
-    searches = bool_exprs(%{and: :search, or: :or_search}, query.searches, names)
+    # SEARCH_TODO: Fix inspection (broken due to SearchOpt's)
+    # searches = bool_exprs(%{and: :search, or: :or_search}, query.searches, names)
+    searches = []
     group_bys = kw_exprs(:group_by, query.group_bys, names)
     havings = bool_exprs(%{and: :having, or: :or_having}, query.havings, names)
     order_bys = kw_exprs(:order_by, query.order_bys, names)

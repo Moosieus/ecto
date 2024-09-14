@@ -1,4 +1,4 @@
-import Kernel, except: [apply: 3]
+import Kernel, except: [apply: 2]
 
 defmodule Ecto.Query.Builder.Search do
   @moduledoc false
@@ -6,12 +6,19 @@ defmodule Ecto.Query.Builder.Search do
   alias Ecto.Query.Builder
   alias Ecto.Query.SearchBuilder
 
+  import Ecto.Query.SearchBuilder, only: [
+    escape_field_param!: 5,
+    escape_bind!: 5
+  ]
+
   @search_options [
-    :limit,
-    :offset,
+    :limit_rows,
+    :offset_rows,
     :stable_sort,
     :order_by
   ]
+
+  @params_acc {[], %{bind: nil}}
 
   @doc """
   Builds a quoted expression.
@@ -44,36 +51,38 @@ defmodule Ecto.Query.Builder.Search do
           build_query(op, expr, params, acc.bind, env)
       end
 
-    Builder.apply_query(query, __MODULE__, [type, quoted], env)
+    Builder.apply_query(query, __MODULE__, [quoted], env)
   end
 
-  ## Escape top-level search options
+  ## Search options (only allowed at the top level)
 
-  def escape({type, _, [{bind, _, nil}, value]} = _expr, vars, env)
-      when is_atom(bind) and type in [:limit, :offset] do
+  def escape({type, _, [bind, value]} = _expr, vars, env) when type in [:limit_rows, :offset_rows] do
+    {_, params_acc} = escape_bind!(bind, @params_acc, vars, type, 2)
 
-    value = Builder.escape(value, :integer, {[], %{}}, vars, env)
+    value = Builder.escape(value, :integer, params_acc, vars, env)
 
     {type, value}
   end
 
-  def escape({:stable_sort, _, [{bind, _, nil}, value]} = _expr, vars, env)
-      when is_atom(bind) do
+  def escape({:stable_sort, _, [bind, value]} = _expr, vars, env) do
+    {_, params_acc} = escape_bind!(bind, @params_acc, vars, :stable_sort, 2)
 
-    value = Builder.escape(value, :boolean, {[], %{}}, vars, env)
+    value = Builder.escape(value, :boolean, params_acc, vars, env)
 
     {:stable_sort, value}
   end
 
-  ## Escape everything else
+  def escape({:order_by, _, [field, direction]} = _expr, vars, _env)
+      when direction in [:asc, :desc] do
+    {field, params_acc} = escape_field_param!(field, @params_acc, vars, :order_by, 2)
 
-  # SEARCH_TODO:
-  # * Reject multiple bindings in the same search line.
-  # * Add the planned ParadeDB expressions.
-  # * Need to account for "subqueries" in a sense...
+    {:order_by, {{field, direction}, params_acc}}
+  end
+
+  ## Search queries
 
   def escape(expr, vars, env) do
-    expr = SearchBuilder.escape(expr, {[], %{bind: nil}}, vars, env)
+    expr = SearchBuilder.escape(expr, @params_acc, vars, env)
 
     {:search, expr}
   end
@@ -89,8 +98,9 @@ defmodule Ecto.Query.Builder.Search do
     }
   end
 
-  defp build_option(type, expr, params, bind, env) when type in @search_options do
+  defp build_option(option, expr, params, bind, env) when option in @search_options do
     quote do: %Ecto.Query.SearchOpt{
+      name: unquote(option),
       expr: unquote(expr),
       params: unquote(params),
       bind: unquote(bind),
@@ -100,27 +110,17 @@ defmodule Ecto.Query.Builder.Search do
   end
 
   def search!() do
-    # I'll need this at some point!
-    # Can't store the search as a struct, needs to be flattened into the parent query.
+    # SEARCH_TODO: Implement this (I think)
   end
 
   @doc """
   The callback applied by `build/4` to build the query.
   """
-  @spec apply(Ecto.Queryable.t, :search | :limit | :offset | :stable_sort, term) :: Ecto.Query.t
-  # def apply(%Ecto.Query{} = query, :limit, expr), do:
-  #   %{query | search_limit: expr}
-
-  # def apply(%Ecto.Query{} = query, :offset, expr), do:
-  #   %{query | search_offset: expr}
-
-  # def apply(%Ecto.Query{} = query, :stable_sort, expr), do:
-  #   %{query | search_stable_sort: expr}
-
-  def apply(%Ecto.Query{searches: searches} = query, :search, expr), do:
+  @spec apply(Ecto.Queryable.t, term) :: Ecto.Query.t
+  def apply(%Ecto.Query{searches: searches} = query, expr), do:
     %{query | searches: searches ++ [expr]}
 
-  def apply(query, option, expr) do
-    apply(Ecto.Queryable.to_query(query), option, expr)
+  def apply(query, expr) do
+    apply(Ecto.Queryable.to_query(query), expr)
   end
 end

@@ -1,12 +1,9 @@
 # v1 Todo:
-* Properly handle multiple searches in one query.
 * Implement all the query functions:
   * more_like_this
   * disjunction_max/3 (with tie_breaker)
   * boolean
   * `and`/`or`/`not`.
-* Support the new sorting options.
-* Make searching require an Ecto schema in the from clause.
 * Figure out the compile time query building.
 * Figure out the search query plan caching.
 * Support querying and mapping `score_bm25`.

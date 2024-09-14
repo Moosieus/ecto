@@ -52,16 +52,16 @@ defmodule Ecto.Query.SearchBuilder do
   end
 
   def escape({:parse, _, [bind, parade_ql]}, params_acc, vars, env) do
-    {bind, params_acc} = escape_bind!(bind, params_acc, vars, :parse, 2)
+    {_bind, params_acc} = escape_bind!(bind, params_acc, vars, :parse, 2)
     {parade_ql, params_acc} = Builder.escape(parade_ql, :string, params_acc, vars, env)
 
-    {{:{}, [], [:parse, [], [bind, parade_ql]]}, params_acc}
+    {{:{}, [], [:parse, [], [parade_ql]]}, params_acc}
   end
 
   def escape({:all, _, [bind]}, params_acc, vars, _) do
-    {bind, params_acc} = escape_bind!(bind, params_acc, vars, :all, 1)
+    {_bind, params_acc} = escape_bind!(bind, params_acc, vars, :all, 1)
 
-    {{:{}, [], [:all, [], [bind]]}, params_acc}
+    {{:{}, [], [:all, [], []]}, params_acc}
   end
 
   def escape({:boost, _, [query, boost]}, params_acc, vars, env) do
@@ -88,9 +88,9 @@ defmodule Ecto.Query.SearchBuilder do
   end
 
   def escape({:empty, _, [bind]}, params_acc, vars, _) do
-    {bind, params_acc} = escape_bind!(bind, params_acc, vars, :empty, 1)
+    {_bind, params_acc} = escape_bind!(bind, params_acc, vars, :empty, 1)
 
-    {{:{}, [], [:empty, [], [bind]]}, params_acc}
+    {{:{}, [], [:empty, [], []]}, params_acc}
   end
 
   def escape({:exists, _, [field]}, params_acc, vars, _) do
@@ -179,7 +179,7 @@ defmodule Ecto.Query.SearchBuilder do
     {{:{}, [], [:term_set, [], [term_set]]}, params_acc}
   end
 
-  def escape({op, _, _} = expr, _params_acc, _vars, _env) when op in ~w(limit offset stable_sort order_by)a do
+  def escape({op, _, _} = expr, _params_acc, _vars, _env) when op in ~w(limit_rows offset_rows stable_sort order_by)a do
     error!("`#{Macro.to_string(expr)}` is only allowed as a top-level expression of a search call.")
   end
 
@@ -240,31 +240,32 @@ defmodule Ecto.Query.SearchBuilder do
     {[acc ++ {key, expr}], params_acc}
   end
 
-  defp escape_bind!({var, _, context}, params_acc, vars, operator, arity)
+  def escape_bind!({var, _, context}, params_acc, vars, operator, arity)
        when is_atom(var) and is_atom(context) do
     params_acc = validate_bind!(var, params_acc, vars, operator, arity)
 
     {escape_var!(var, vars), params_acc}
   end
 
-  defp escape_bind!(arg, _params_acc, _vars, operator, arity) do
+  def escape_bind!(arg, _params_acc, _vars, operator, arity) do
     error!("first argument of `#{operator}/#{arity}` `#{Macro.to_string(arg)}` must be a bind.")
   end
 
-  defp escape_field_param!({{:., _, [{var, _, context} = bind, field]}, _, []}, params_acc, vars, operator, arity)
+  @doc false
+  def escape_field_param!({{:., _, [{var, _, context} = bind, field]}, _, []}, params_acc, vars, operator, arity)
        when is_atom(var) and is_atom(context) and is_atom(field) do
     params_acc = validate_bind!(var, params_acc, vars, operator, arity)
 
     {escape_field!(bind, field, vars), params_acc}
   end
 
-  defp escape_field_param!({:field, _, [callee, field]}, params_acc, vars, operator, arity) do
+  def escape_field_param!({:field, _, [callee, field]}, params_acc, vars, operator, arity) do
     params_acc = validate_bind!(callee, params_acc, vars, operator, arity)
 
     {escape_field!(callee, field, vars), params_acc}
   end
 
-  defp escape_field_param!(arg, _, _, operator, arity) do
+  def escape_field_param!(arg, _, _, operator, arity) do
     error!("first argument of `#{operator}/#{arity}` must be a bound field, got: `#{Macro.to_string(arg)}`")
   end
 

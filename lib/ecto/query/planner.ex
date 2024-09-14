@@ -5,6 +5,7 @@ defmodule Ecto.Query.Planner do
   alias Ecto.Query.{
     BooleanExpr,
     SearchExpr,
+    SearchOpt,
     ByExpr,
     DynamicExpr,
     FromExpr,
@@ -247,17 +248,34 @@ defmodule Ecto.Query.Planner do
   defp group_searches(%{searches: []}), do: %{}
 
   defp group_searches(%{searches: search_exprs}) when is_list(search_exprs) do
-    Enum.reduce(search_exprs, %{}, fn %{bind: {_, ix}} = search_expr, acc ->
-      case Map.fetch(acc, ix) do
-        {:ok, %{queries: queries} = search_query} ->
-          Map.put(acc, ix, %{search_query | queries: [search_expr | queries]})
-        :error ->
-          Map.put(acc, ix, %SearchQuery{queries: [search_expr]})
-      end
-    end)
+    Enum.reduce(search_exprs, %{}, &group_searches_reduce/2)
   end
 
   defp group_searches(_), do: %{}
+
+  defp group_searches_reduce(%SearchExpr{bind: {_, ix}} = search_expr, acc) do
+    query =
+      case Map.fetch(acc, ix) do
+        {:ok, %SearchQuery{queries: queries} = search_query} ->
+          %{search_query | queries: [search_expr | queries]}
+        :error ->
+          %SearchQuery{queries: [search_expr]}
+      end
+
+    Map.put(acc, ix, query)
+  end
+
+  defp group_searches_reduce(%SearchOpt{bind: {_, ix}, name: name} = option, acc) do
+    query =
+      case Map.fetch(acc, ix) do
+        {:ok, %SearchQuery{} = search_query} ->
+          %{search_query | options: Map.put(search_query.options, name, option)}
+        :error ->
+          %SearchQuery{options: %{name => option}}
+      end
+
+    Map.put(acc, ix, query)
+  end
 
   @doc """
   Prepare all sources, by traversing and expanding from, joins, subqueries.
@@ -1076,8 +1094,9 @@ defmodule Ecto.Query.Planner do
     {op, expr, Enum.map(subqueries, fn %{cache: cache} -> {:subquery, cache} end)}
   end
 
-  # SEARCH_TODO: Is this correct?
+  # SEARCH_TODO: Figure out the proper way to cache SearchExpr's and SearchOpt's
   defp expr_to_cache(%SearchExpr{op: op, expr: expr}), do: {op, expr}
+  defp expr_to_cache(%SearchOpt{name: name, expr: expr}), do: {name, expr}
 
   defp expr_to_cache(%LimitExpr{expr: expr, with_ties: with_ties}), do: {with_ties, expr}
 

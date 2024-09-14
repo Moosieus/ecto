@@ -16,10 +16,10 @@ end
 defmodule Ecto.SearchQuery do
   @moduledoc false
   # A struct representing ParadeDB search queries.
-  # Search expressions are saved to a list and accumulated into queries during
-  # the planning step.
+  # Search expressions are saved to a `:searches` list,
+  # and accumulated into this struct during planning.
 
-  defstruct [:queries, :limit, :offset, :order_by, :index]
+  defstruct [index: nil, queries: [], options: %{}]
 
   @type t :: %__MODULE__{}
 end
@@ -460,9 +460,8 @@ defmodule Ecto.Query do
 
   defmodule SearchOpt do
     @moduledoc false
-    defstruct [:expr, :file, :line, params: [], bind: nil]
+    defstruct [:name, :expr, :file, :line, params: [], bind: nil]
   end
-
 
   defmodule SelectExpr do
     @moduledoc false
