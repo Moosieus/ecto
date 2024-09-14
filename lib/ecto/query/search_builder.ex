@@ -1,4 +1,5 @@
 defmodule Ecto.Query.SearchBuilder do
+  @moduledoc false
 
   alias Ecto.Query.Builder
 

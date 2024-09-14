@@ -1,16 +1,20 @@
 # v1 Todo:
-* Implement more_like_this
-* Figure out escaping options for atoms:
-  * Allow `:desc` and `:asc` to be passed as variables to `order_by/2`
-  * Allow `:must`, `:must_not`, and `:should` to be passed as variables in `boolean/2`
-* Fix the inspection that's broken due to the search list
-* Figure out the compile time query building.
+* Fix the inspection that's broken due to `searches` containing `SearchOpts` now.
+* Figure out the compile-time/runtime query building.
 * Figure out the search query plan caching.
 * Support querying and mapping `score_bm25`.
+* Implement `more_like_this` search query.
+* Allow atoms in `order_by/2` and `boolean/2` to be variables in addition to atom literals.
+* Map search indexes within Ecto schemas:
+  * The index name
+  * The key field
+  * Map what fields are available
+  * What type they are (namely for ranges)
 * Support aggregations and facets.
 * Support highlighting.
 * Support hybrid search.
-* Write documentation and test coverage for everything.
+* Write API documentation.
+* Write test coverage for everything.
 * Get some form of an audit done.
 * Find a patch'n'publish method for the respective versions of ecto.
 
