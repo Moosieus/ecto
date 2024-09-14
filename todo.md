@@ -1,7 +1,5 @@
 # v1 Todo:
-* Implement all the query functions:
-  * more_like_this
-  * disjunction_max/3 (with tie_breaker)
+* Implement more_like_this
 * Figure out escaping options for atoms:
   * Allow `:desc` and `:asc` to be passed as variables to `order_by/2`
   * Allow `:must`, `:must_not`, and `:should` to be passed as variables in `boolean/2`
