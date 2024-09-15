@@ -1,7 +1,7 @@
 import Inspect.Algebra
 import Kernel, except: [to_string: 1]
 
-alias Ecto.Query.{DynamicExpr, JoinExpr, QueryExpr, WithExpr, LimitExpr}
+alias Ecto.Query.{DynamicExpr, JoinExpr, QueryExpr, WithExpr, LimitExpr, SearchExpr, SearchOpt}
 
 defimpl Inspect, for: Ecto.Query.DynamicExpr do
   def inspect(%DynamicExpr{binding: binding} = dynamic, opts) do
@@ -105,9 +105,7 @@ defimpl Inspect, for: Ecto.Query do
     limit = limit(query.limit, names)
 
     wheres = bool_exprs(%{and: :where, or: :or_where}, query.wheres, names)
-    # SEARCH_TODO: Fix inspection (broken due to SearchOpt's)
-    # searches = bool_exprs(%{and: :search, or: :or_search}, query.searches, names)
-    searches = []
+    searches = search_exprs(%{and: :search, or: :or_search}, query.searches, names)
     group_bys = kw_exprs(:group_by, query.group_bys, names)
     havings = bool_exprs(%{and: :having, or: :or_having}, query.havings, names)
     order_bys = kw_exprs(:order_by, query.order_bys, names)
@@ -225,6 +223,15 @@ defimpl Inspect, for: Ecto.Query do
   defp bool_exprs(keys, exprs, names) do
     Enum.map(exprs, fn %{expr: expr, op: op} = part ->
       {Map.fetch!(keys, op), expr(expr, names, part)}
+    end)
+  end
+
+  defp search_exprs(keys, exprs, names) do
+    Enum.map(exprs, fn
+      %SearchExpr{expr: expr, op: op} = part ->
+        {Map.fetch!(keys, op), expr(expr, names, part)}
+      %SearchOpt{name: name, expr: expr} = part ->
+        {name, expr(expr, names, part)}
     end)
   end
 
