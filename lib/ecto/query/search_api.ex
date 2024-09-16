@@ -105,6 +105,17 @@ defmodule Ecto.Query.SearchAPI do
   * `prefix` - When set to `true`, the initial substring (prefix) of the query term is exempted from
   the fuzzy edit distance calculation, while `false` includes the entire string in the calculation.
   Defaults to `false`.
+
+  > #### Options must be keyword literals {. :warning}
+  > The following is okay:
+  > ```elixir
+  > x = 1
+  > fuzzy_term(p.title, "Eilxir", distance: ^x)
+  > ```
+  > whereas this will not:
+  > ```elixir
+  > x = [distance: 1]
+  > fuzzy_term(p.title, "Eilxir", ^x)
   """
   def fuzzy_term(bind, string, options \\ []), do: doc!([bind, string, options])
 
@@ -183,6 +194,55 @@ defmodule Ecto.Query.SearchAPI do
       )
   """
   def term_set(field, term_set), do: doc!([field, term_set])
+
+  @doc """
+  Limits the number of results returned from the search query
+  ([ref](https://docs.paradedb.com/api-reference/full-text/bm25#limit-and-offset)).
+
+      from(
+        p in Post,
+        search: all(p),
+        search: limit_rows(p, 10)
+      )
+  """
+  def limit_rows(bind, limit), do: doc!([bind, limit])
+
+  @doc """
+  Provides pagination when used with `limit_rows/2`.
+  ([ref](https://docs.paradedb.com/api-reference/full-text/bm25#limit-and-offset)).
+
+      from(
+        p in Post,
+        search: all(p),
+        search: limit_rows(p, 10),
+        search: offset_rows(p, 3)
+      )
+  """
+  def offset_rows(bind, offset), do: doc!([bind, offset])
+
+  @doc """
+  Specifies whether ParadeDB should stabilize the order of equally-scored results,
+  at the cost of performance. Defaults to `false`.
+
+      from(
+        p in Post,
+        search: term(p.category, "travel"),
+        search: stable_sort(true)
+      )
+  """
+  def stable_sort(bind, boolean), do: doc!([bind, boolean])
+
+  @doc """
+  Shorthand for the `order_by_field` and `order_by_direction` options
+  ([ref](https://docs.paradedb.com/api-reference/full-text/bm25#custom-ordering)).
+
+      from(
+        p in Post,
+        search: all(p),
+        search: order_by(p.rating, :desc)
+      )
+  """
+  def order_by(field, direction), do: doc!([field, direction])
 
   defp doc!(_) do
     raise "the functions in Ecto.Query.SearchAPI should not be invoked directly, " <>

@@ -65,34 +65,54 @@ defmodule Ecto.Query.SearchBuilder do
     {{:{}, [], [:all, [], []]}, params_acc}
   end
 
-  def escape({:boolean, _, [condition, queries]}, params_acc, vars, env)
-      when condition in [:must, :must_not, :should] do
-    {queries, params_acc} =
-      Enum.map_reduce(queries, params_acc, fn expr, params_acc ->
-        escape_term!(expr, params_acc, vars, env)
+  @boolean_conditions [:must, :should, :must_not]
+
+  def escape({:boolean, _, [conditions]}, params_acc, vars, env) do
+    Keyword.keyword?(conditions) || error!("boolean/1 expects a keyword list, got non-keyword list.")
+
+    {conditions, params_acc} =
+      Enum.map_reduce(conditions, params_acc, fn {key, expr_or_exprs}, params_acc ->
+        key in @boolean_conditions ||
+          error!(
+            "`#{key}` is not a valid option for boolean/1. " <>
+            "Did you mean to use `must`, `must_not`, or `should` instead?"
+          )
+
+        # allow a single query expression or a list of them.
+        {expr_or_exprs, params_acc} =
+          case expr_or_exprs do
+            exprs when is_list(exprs) ->
+              Enum.map_reduce(exprs, params_acc, fn expr, params_acc ->
+                escape(expr, params_acc, vars, env)
+              end)
+            expr ->
+              escape(expr, params_acc, vars, env)
+          end
+
+        {{key, expr_or_exprs}, params_acc}
       end)
 
-    {{:{}, [], [:boolean, [], [condition, queries]]}, params_acc}
+    {{:{}, [], [:boolean, [], [conditions]]}, params_acc}
   end
 
   def escape({:and, _, [left, right]}, params_acc, vars, env) do
     {left, params_acc} = escape(left, params_acc, vars, env)
     {right, params_acc} = escape(right, params_acc, vars, env)
 
-    {{:{}, [], [:boolean, [], [:must, [left, right]]]}, params_acc}
+    {{:{}, [], [:boolean, [], [{:must, [left, right]}]]}, params_acc}
   end
 
   def escape({:or, _, [left, right]}, params_acc, vars, env) do
     {left, params_acc} = escape(left, params_acc, vars, env)
     {right, params_acc} = escape(right, params_acc, vars, env)
 
-    {{:{}, [], [:boolean, [], [:should, [left, right]]]}, params_acc}
+    {{:{}, [], [:boolean, [], [{:should, [left, right]}]]}, params_acc}
   end
 
   def escape({:not, _, [query]}, params_acc, vars, env) do
     {query, params_acc} = escape(query, params_acc, vars, env)
 
-    {{:{}, [], [:boolean, [], [:must_not, [query]]]}, params_acc}
+    {{:{}, [], [:boolean, [], [{:must_not, query}]]}, params_acc}
   end
 
   def escape({:boost, _, [query, boost]}, params_acc, vars, env) do
@@ -152,7 +172,7 @@ defmodule Ecto.Query.SearchBuilder do
   def escape({:fuzzy_term, _, [field, value, opts]}, params_acc, vars, env) do
     {field, params_acc} = escape_field_param!(field, params_acc, vars, :fuzzy_term, 3)
     {value, params_acc} = Builder.escape(value, :string, params_acc, vars, env)
-    {opts, params_acc} = escape_options!(opts, @fuzzy_option_types, params_acc, vars, env)
+    {opts, params_acc} = escape_options!(opts, @fuzzy_option_types, params_acc, vars, env, :fuzzy_term, 3)
 
     {{:{}, [], [:fuzzy_term, [], [field, value, opts]]}, params_acc}
   end
@@ -251,17 +271,30 @@ defmodule Ecto.Query.SearchBuilder do
     error!("All values in term_set/2 must be of term/2, got: `#{Macro.to_string(expr)}`")
   end
 
-  # escapes the options specified by opt_types present in opts. Unspecified keys are ignored.
-  defp escape_options!(opts, opt_types, params_acc, vars, env) do
+  defp escape_options!(opts, opt_types, params_acc, vars, env, operator, arity) do
     opts = keyword_literal!(opts)
 
     opts =
-      for {key, type} <- opt_types,
-          Keyword.has_key?(opts, key) do
-        {key, Keyword.fetch!(opts, key), type}
+      for {key, expr} <- opts do
+        case Keyword.fetch(opt_types, key) do
+          {:ok, type} ->
+            {key, expr, type}
+
+          :error ->
+            valid_keys =
+              opt_types
+              |> Keyword.keys()
+              |> join_option_keys()
+            error!(
+              """
+              `#{key}` is not a valid option for `#{operator}/#{arity}`.
+              Did you mean to use #{valid_keys} instead?
+              """
+            )
+        end
       end
 
-    Enum.reduce(opts, {[], params_acc}, &escape_option(&1, &2, vars, env))
+    Enum.map_reduce(opts, params_acc, &escape_option(&1, &2, vars, env))
   end
 
   defp keyword_literal!(kw_list) when is_list(kw_list) do
@@ -276,9 +309,19 @@ defmodule Ecto.Query.SearchBuilder do
     error!("`#{Macro.to_string(other)}` must be a keyword list literal.")
   end
 
-  defp escape_option({key, value, type}, {acc, params_acc}, vars, env) do
+  defp join_option_keys(opts, acc \\ [])
+
+  defp join_option_keys([opt], []), do: "`#{opt}`"
+
+  defp join_option_keys([opt], acc), do: IO.iodata_to_binary([acc, "or ", "`#{opt}`"])
+
+  defp join_option_keys([opt | rest], acc) do
+    join_option_keys(rest, [acc, "`#{opt}`, "])
+  end
+
+  defp escape_option({key, value, type}, params_acc, vars, env) do
     {expr, params_acc} = Builder.escape(value, type, params_acc, vars, env)
-    {[acc ++ {key, expr}], params_acc}
+    {{key, expr}, params_acc}
   end
 
   def escape_bind!({var, _, context}, params_acc, vars, operator, arity)
