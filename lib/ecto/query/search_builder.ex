@@ -99,20 +99,20 @@ defmodule Ecto.Query.SearchBuilder do
     {left, params_acc} = escape(left, params_acc, vars, env)
     {right, params_acc} = escape(right, params_acc, vars, env)
 
-    {{:{}, [], [:boolean, [], [{:must, [left, right]}]]}, params_acc}
+    {{:{}, [], [:boolean, [], [[must: [left, right]]]]}, params_acc}
   end
 
   def escape({:or, _, [left, right]}, params_acc, vars, env) do
     {left, params_acc} = escape(left, params_acc, vars, env)
     {right, params_acc} = escape(right, params_acc, vars, env)
 
-    {{:{}, [], [:boolean, [], [{:should, [left, right]}]]}, params_acc}
+    {{:{}, [], [:boolean, [], [should: [left, right]]]}, params_acc}
   end
 
   def escape({:not, _, [query]}, params_acc, vars, env) do
     {query, params_acc} = escape(query, params_acc, vars, env)
 
-    {{:{}, [], [:boolean, [], [{:must_not, query}]]}, params_acc}
+    {{:{}, [], [:boolean, [], [[must_not: query]]]}, params_acc}
   end
 
   def escape({:boost, _, [query, boost]}, params_acc, vars, env) do
