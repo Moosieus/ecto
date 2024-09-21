@@ -261,7 +261,7 @@ defmodule Ecto.Query.SearchBuilder do
   end
 
   defp escape_term!({:term, _, [field, term]}, params_acc, vars, env) do
-    field = escape_field_param!(field, params_acc, vars, :term, 2)
+    {field, params_acc} = escape_field_param!(field, params_acc, vars, :term, 2)
     {term, params_acc} = Builder.escape(term, :any, params_acc, vars, env)
 
     {{:{}, [], [:term, [], [field, term]]}, params_acc}

@@ -144,6 +144,38 @@ defmodule Ecto.Query.SearchAPI do
   def phrase_prefix(field, phrases), do: doc!([field, phrases])
 
   @doc """
+  Finds documents containing a term that falls within a specified range of Postgres integers.
+  ([ref](https://docs.paradedb.com/api-reference/advanced/range)). Use this for serial columns.
+      from(
+        p in Post,
+        search: int4range(p.rating, 1, 3, "[]")
+      )
+  """
+  def int4range(field, int_or_nil, int_or_nil, string), do: doc!([field, int_or_nil, int_or_nil, string])
+
+  @doc """
+  Finds documents containing a term that falls within a specified range of Postgres bigints
+  ([ref](https://docs.paradedb.com/api-reference/advanced/range)). Use this for bigserial columns.
+      from(
+        p in Post,
+        search: int8range(p.rating, 1, 3, "[]")
+      )
+  """
+  def int8range(field, int_or_nil, int_or_nil, string), do: doc!([field, int_or_nil, int_or_nil, string])
+
+  @doc """
+  Finds documents containing a term that falls within a specified range of dates.
+  ([ref](https://docs.paradedb.com/api-reference/advanced/range)).
+  """
+  def daterange(field, date_or_nil, date_or_nil, string), do: doc!([field, date_or_nil, date_or_nil, string])
+
+  @doc """
+  Finds documents containing a term that falls within a specified range of timestamps.
+  ([ref](https://docs.paradedb.com/api-reference/advanced/range)).
+  """
+  def tsrange(field, tstamp_or_nil, tstamp_or_nil, string), do: doc!([field, tstamp_or_nil, tstamp_or_nil, string])
+
+  @doc """
   Same as `phrase_prefix/2` with a max_expansion as an additional argument. Limits the number of
   term variations that the prefix can expand to during the search. This helps in controlling the
   breadth of the search by setting a cap on how many different terms the prefix can match

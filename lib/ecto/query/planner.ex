@@ -968,6 +968,33 @@ defmodule Ecto.Query.Planner do
     {query, params, finalize_cache(query, operation, cache)}
   end
 
+  defp merge_cache(
+         :from,
+         query,
+         %{source: {%SearchQuery{} = search_query, _}} = from,
+         {cache, params},
+         _operation,
+         adapter
+       ) do
+    %SearchQuery{queries: exprs, options: options} = search_query
+
+    {key, params} = source_cache(from, params)
+
+    params =
+      Enum.reduce(exprs, params, fn search_expr, params ->
+          {params, _cacheable?} = cast_and_merge_params(:search, query, search_expr, params, adapter)
+          params
+      end)
+
+    params =
+      Enum.reduce(options, params, fn {_, option_expr}, params ->
+          {params, _cacheable?} = cast_and_merge_params(:search, query, option_expr, params, adapter)
+          params
+      end)
+
+    {merge_cache({:from, key, from.hints}, cache, key != :nocache), params}
+  end
+
   defp merge_cache(:from, query, from, {cache, params}, _operation, adapter) do
     {key, params} = source_cache(from, params)
     {params, source_cacheable?} = cast_and_merge_params(:from, query, from, params, adapter)
@@ -975,7 +1002,7 @@ defmodule Ecto.Query.Planner do
   end
 
   defp merge_cache(kind, query, expr, {cache, params}, _operation, adapter)
-       when kind in ~w(select distinct limit offset search_limit search_offset search_stable_sort)a do
+       when kind in ~w(select distinct limit offset)a do
     if expr do
       {params, cacheable?} = cast_and_merge_params(kind, query, expr, params, adapter)
       {merge_cache({kind, expr_to_cache(expr)}, cache, cacheable?), params}
@@ -985,7 +1012,7 @@ defmodule Ecto.Query.Planner do
   end
 
   defp merge_cache(kind, query, exprs, {cache, params}, _operation, adapter)
-       when kind in ~w(where update group_by having order_by search)a do
+       when kind in ~w(where update group_by having order_by)a do
     {expr_cache, {params, cacheable?}} =
       Enum.map_reduce(exprs, {params, true}, fn expr, {params, cacheable?} ->
         {params, current_cacheable?} = cast_and_merge_params(kind, query, expr, params, adapter)
@@ -1409,7 +1436,7 @@ defmodule Ecto.Query.Planner do
   end
 
   defp validate_and_increment(kind, query, expr, counter, _operation, adapter)
-       when kind in ~w(select distinct limit offset search_limit search_offset search_stable_sort)a do
+       when kind in ~w(select distinct limit offset)a do
     if expr do
       prewalk(kind, query, expr, counter, adapter)
     else
@@ -1418,7 +1445,7 @@ defmodule Ecto.Query.Planner do
   end
 
   defp validate_and_increment(kind, query, exprs, counter, _operation, adapter)
-       when kind in ~w(where group_by having order_by update search)a do
+       when kind in ~w(where group_by having order_by update)a do
     {exprs, counter} =
       Enum.reduce(exprs, {[], counter}, fn
         %{expr: []}, {list, acc} ->
@@ -1602,6 +1629,31 @@ defmodule Ecto.Query.Planner do
     rescue
       e -> raise Ecto.SubQueryError, query: query, exception: e
     end
+  end
+
+  defp prewalk_source({%Ecto.SearchQuery{} = search_query, schema}, _kind, query, _expr, counter, adapter) do
+    %Ecto.SearchQuery{queries: search_exprs, options: options} = search_query
+
+    {search_exprs, counter} =
+      Enum.reduce(search_exprs, {[], counter}, fn
+        %{expr: []}, {list, counter} ->
+          {list, counter}
+
+        expr, {list, counter} ->
+          {expr, counter} = prewalk(:where, query, expr, counter, adapter)
+          {[expr | list], counter}
+      end)
+
+    {options, counter} =
+      Enum.reduce(options, {%{}, counter}, fn {name, expr}, {map, counter} ->
+        {expr, counter} = prewalk(:where, query, expr, counter, adapter)
+
+        {Map.put(map, name, expr), counter}
+      end)
+
+    search_query = %{search_query | queries: Enum.reverse(search_exprs), options: options}
+
+    {{search_query, schema}, counter}
   end
 
   defp prewalk_source(source, _kind, _query, _expr, acc, _adapter) do
@@ -2401,7 +2453,6 @@ defmodule Ecto.Query.Planner do
     from: :from,
     join: :joins,
     where: :wheres,
-    search: :searches,
     group_by: :group_bys,
     having: :havings,
     windows: :windows,
